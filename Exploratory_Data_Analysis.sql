@@ -1,110 +1,202 @@
 --Exploratory Data Analysis
 
-select *
-from layoffs_staging2;
+SELECT *
+FROM layoffs_staging2;
 
-select max(total_laid_off) , max(percentage_laid_off)
-from layoffs_staging2;
+SELECT MAX(total_laid_off), MAX(percentage_laid_off)
+FROM layoffs_staging2;
 
-select *
-from layoffs_staging2
-where percentage_laid_off = 1
-order by total_laid_off DESC;
+SELECT *
+FROM layoffs_staging2
+WHERE percentage_laid_off =1;
 
-select *
-from layoffs_staging2
-where percentage_laid_off = 1
-order by funds_raised_millions DESC;
+SELECT *
+FROM layoffs_staging2
+WHERE percentage_laid_off = 1
+ORDER BY total_laid_off DESC;
 
-select company, sum(total_laid_off)
-from layoffs_staging2
-group by company
-order by 2 desc;
+SELECT *
+FROM layoffs_staging2
+WHERE percentage_laid_off = 1
+ORDER BY funds_raised_millions DESC;
 
-select min(`date`), max(`date`)
-from layoffs_staging2;
+SELECT company, SUM(total_laid_off)
+FROM layoffs_staging2
+GROUP BY company
+ORDER BY 2 DESC;
 
-select company, sum(total_laid_off) 
-from layoffs_staging2
-group by company
-order by 2 desc;
+SELECT MIN(`date`), MAX(`date`)
+FROM layoffs_staging2;
 
-select industry, sum(total_laid_off) 
-from layoffs_staging2
-group by industry
-order by 2 desc;
+SELECT industry, SUM(total_laid_off)
+FROM layoffs_staging2
+GROUP BY industry
+ORDER BY 2 DESC;
 
-select country, sum(total_laid_off) 
-from layoffs_staging2
-group by country
-order by 2 desc;
+SELECT country, SUM(total_laid_off)
+FROM layoffs_staging2
+GROUP BY country
+ORDER BY 2 DESC;
 
-select year(`date`), sum(total_laid_off) 
-from layoffs_staging2
-group by year(`date`)
-order by 1 desc;
+SELECT `date`, SUM(total_laid_off)
+FROM layoffs_staging2
+GROUP BY `date`
+ORDER BY 1 DESC;
 
-select stage, sum(total_laid_off) 
-from layoffs_staging2
-group by stage
-order by 2 desc;
+SELECT YEAR(`date`), SUM(total_laid_off)
+FROM layoffs_staging2
+GROUP BY YEAR(`date`)
+ORDER BY 1 DESC;
 
--- Monthly total_laid_off using SUBSTRING(date, 1, 7), sorted by month (YYYY-MM)
-select substring(`date`,1,7) as `month`, sum(total_laid_off)
-from layoffs_staging2
-where substring(`date`,1,7) is not null
-group by `month`
-order by 1 ASC; 
+SELECT stage, SUM(total_laid_off)
+FROM layoffs_staging2
+GROUP BY stage
+ORDER BY 1 DESC;
 
--- Monthly total_laid_off with cumulative (rolling) total
-with Rolling_Total as
+SELECT stage, SUM(total_laid_off)
+FROM layoffs_staging2
+GROUP BY stage
+ORDER BY 2 DESC;
+
+-- Aggregate total_laid_off by month (YYYY-MM) from the date column
+SELECT SUBSTRING(`date`,1,7) AS `MONTH`, SUM(total_laid_off)
+FROM layoffs_staging2
+WHERE SUBSTRING(`date`,1,7) IS NOT NULL
+GROUP BY `MONTH`
+ORDER BY 1 ASC;
+
+
+-- Use a CTE to calculate monthly totals of layoffs, then compute the rolling (cumulative) total across months
+WITH ROlling_Total AS
 (
-select substring(`date`,1,7) as `month`, sum(total_laid_off) as total_off
-from layoffs_staging2
-where substring(`date`,1,7) is not null
-group by `month`
-order by 1 ASC
+SELECT SUBSTRING(`date`,1,7) AS `MONTH`, SUM(total_laid_off) AS total_off
+FROM layoffs_staging2
+WHERE SUBSTRING(`date`,1,7) IS NOT NULL
+GROUP BY `MONTH`
+ORDER BY 1 ASC
 )
-select `month`, total_off,
-sum(total_off) over(order by `month`) as rolling_total
-from Rolling_Total;
+SELECT `MONTH`, SUM(total_off) OVER(ORDER BY `MONTH`) AS rolling_total
+FROM ROlling_Total;
 
--- Yearly total_laid_off by company
-select company, year(`date`), sum(total_laid_off) 
-from layoffs_staging2
-group by company, year(`date`)
-order by company ASC;
-
--- Yearly total_laid_off by company, sorted by total layoffs (descending)
-select company, year(`date`), sum(total_laid_off) 
-from layoffs_staging2
-group by company, year(`date`)
-order by 3 desc;
-
--- Yearly ranking of companies by total_laid_off (highest to lowest)
-with Company_Year (company, years, total_laid_off)  as
+-- Include monthly total_off values alongside the rolling total
+WITH ROlling_Total AS
 (
-select company, year(`date`), sum(total_laid_off) 
-from layoffs_staging2
-group by company, year(`date`)
+SELECT SUBSTRING(`date`,1,7) AS `MONTH`, SUM(total_laid_off) AS total_off
+FROM layoffs_staging2
+WHERE SUBSTRING(`date`,1,7) IS NOT NULL
+GROUP BY `MONTH`
+ORDER BY 1 ASC
 )
-select *, dense_rank() over (partition by years order by total_laid_off desc) as Ranking
-from Company_Year
-where years is not null
-order by Ranking asc;
+SELECT `MONTH`, total_off,
+SUM(total_off) OVER(ORDER BY `MONTH`) AS rolling_total
+FROM ROlling_Total;
 
--- Top 5 companies per year ranked by total_laid_off
-with Company_Year (company, years, total_laid_off)  as
+
+-- Find the total number of layoffs per company, ordered by highest to lowest
+SELECT company, SUM(total_laid_off)
+FROM layoffs_staging2
+GROUP BY company
+ORDER BY 2 DESC;
+
+-- Find the total number of layoffs per company on each date
+SELECT company, `date`, SUM(total_laid_off)
+FROM layoffs_staging2
+GROUP BY company, `date`;
+
+-- Find the total number of layoffs per company per year, ordered alphabetically by company
+SELECT company, YEAR(`date`), SUM(total_laid_off)
+FROM layoffs_staging2
+GROUP BY company, YEAR(`date`)
+ORDER BY company ASC;
+
+-- Total layoffs by company per year, sorted highest to lowest
+SELECT company, YEAR(`date`), SUM(total_laid_off)
+FROM layoffs_staging2
+GROUP BY company, YEAR(`date`)
+ORDER BY 3 DESC;
+
+-- Step 1: In the CTE, calculate total layoffs grouped by company and year
+-- Step 2: Select all results from the CTE
+WITH Company_Year AS
 (
-select company, year(`date`), sum(total_laid_off) 
-from layoffs_staging2
-group by company, year(`date`)
-), Company_Year_Rank as
-(select *, dense_rank() over (partition by years order by total_laid_off desc) as Ranking
-from Company_Year
-where years is not null
+SELECT company, YEAR(`date`), SUM(total_laid_off)
+FROM layoffs_staging2
+GROUP BY company, YEAR(`date`)
 )
-select *
-from Company_Year_Rank
-where Ranking <=5
+SELECT *
+FROM Company_Year;
+
+-- Rename the CTE output columns as company, years, and total_laid_off
+WITH Company_Year (company, years, total_laid_off) AS
+(
+SELECT company, YEAR(`date`), SUM(total_laid_off)
+FROM layoffs_staging2
+GROUP BY company, YEAR(`date`)
+)
+SELECT *
+FROM Company_Year;
+
+-- Calculate total layoffs per company per year and assign a dense rank by total_laid_off within each year
+WITH Company_Year (company, years, total_laid_off) AS
+(
+SELECT company, YEAR(`date`), SUM(total_laid_off)
+FROM layoffs_staging2
+GROUP BY company, YEAR(`date`)
+)
+SELECT *, DENSE_RANK() OVER (PARTITION BY years  ORDER BY total_laid_off DESC)
+FROM Company_Year;
+
+-- Calculate total layoffs per company per year and assign a dense rank by total_laid_off within each year but exclude rows where the year is NULL
+WITH Company_Year (company, years, total_laid_off) AS
+(
+SELECT company, YEAR(`date`), SUM(total_laid_off)
+FROM layoffs_staging2
+GROUP BY company, YEAR(`date`)
+)
+SELECT *, DENSE_RANK() OVER (PARTITION BY years  ORDER BY total_laid_off DESC)
+FROM Company_Year
+WHERE years IS NOT NULL;
+
+-- Assign a ranking column to companies based on total layoffs per year and order the results by rank ascending
+WITH Company_Year (company, years, total_laid_off) AS
+(
+SELECT company, YEAR(`date`), SUM(total_laid_off)
+FROM layoffs_staging2
+GROUP BY company, YEAR(`date`)
+)
+SELECT *, DENSE_RANK() OVER (PARTITION BY years  ORDER BY total_laid_off DESC) AS Ranking
+FROM Company_Year
+WHERE years IS NOT NULL
+ORDER BY Ranking ASC;
+
+-- Create a CTE with yearly totals per company, then create a second CTE that assigns a dense rank within each year, and select all results
+WITH Company_Year (company, years, total_laid_off) AS
+(
+SELECT company, YEAR(`date`), SUM(total_laid_off)
+FROM layoffs_staging2
+GROUP BY company, YEAR(`date`)
+), Company_Year_Rank AS
+(SELECT *, 
+DENSE_RANK() OVER (PARTITION BY years  ORDER BY total_laid_off DESC) AS Ranking
+FROM Company_Year
+WHERE years IS NOT NULL
+)
+SELECT *
+FROM Company_Year_Rank
 ;
+
+-- Select the top 5 companies per year based on total layoffs using the dense rank assigned in the second CTE
+WITH Company_Year (company, years, total_laid_off) AS
+(
+SELECT company, YEAR(`date`), SUM(total_laid_off)
+FROM layoffs_staging2
+GROUP BY company, YEAR(`date`)
+), Company_Year_Rank AS
+(SELECT *, 
+DENSE_RANK() OVER (PARTITION BY years  ORDER BY total_laid_off DESC) AS Ranking
+FROM Company_Year
+WHERE years IS NOT NULL
+)
+SELECT *
+FROM Company_Year_Rank
+WHERE Ranking <=5;
